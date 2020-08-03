@@ -1,0 +1,13 @@
+version: '3.7'
+services:
+  xl-release:
+    image: xebialabs/xl-release:9.7
+    ports:
+    - "15516:5516"
+    environment:
+    - ADMIN_PASSWORD=admin
+    - ACCEPT_EULA=Y
+    volumes:
+      # - ~/xl-licenses/xl-release-license.lic:/opt/xebialabs/xl-release-server/conf/xl-release-license.lic
+      - ./data/:/data:ro
+      - ./plugins/:/opt/xebialabs/xl-release-server/plugins/__local__/
