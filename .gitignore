@@ -1,0 +1,9 @@
+.project
+.DS_Store
+.settings
+.vscode
+.idea
+supervisord.*
+.classpath
+docker/data/
+docker/plugins/
