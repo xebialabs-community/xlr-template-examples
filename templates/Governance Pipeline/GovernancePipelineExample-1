@@ -1,6 +1,6 @@
 # Exported from:        http://host.docker.internal:5516/
 # Release version:      23.1.0-rc.2
-# Date created:         Mon Oct 30 19:43:01 UTC 2023
+# Date created:         Mon Oct 30 20:20:30 UTC 2023
 
 ---
 apiVersion: xl-release/v1
@@ -9,8 +9,10 @@ metadata:
   home: Governance Pipeline
 spec:
 - template: GovernancePipelineExample-1
-  description: "** This template is an example of release governance for a financial institution"
+  description: '** This template is an example of release governance for a financial
+    institution'
   scheduledStartDate: 2018-03-08T14:00:00Z
+  dueDate: 2018-03-08T15:00:00Z
   phases:
   - phase: construct_pipeline
     tasks:
@@ -20,6 +22,10 @@ spec:
       tasks:
       - name: Set repository variables
         type: xlrelease.ScriptTask
+        description: This task is being used to construct the releaseConfigFileLocation.
+          Release config file can be created by the CI/CD team to get information
+          from the application team about the application. It is like defining a api
+          contract between the CI/CD pipeline and application team.
         script: |-
           releaseconfig_file = releaseVariables['releaseConfigFileRepoLocation'].strip()
           if '@' in releaseconfig_file:
@@ -38,6 +44,8 @@ spec:
               releaseVariables['temp_integrated_release_environment'].append(env)
       - name: Get Release File
         type: xlrelease.Task
+        description: GetReleaseFile from Source Control. Appropriate plugin can be
+          used based on the SCM being used.
         flagStatus: ATTENTION_NEEDED
         flagComment: Task 'Get Release File' in Phase 'construct_pipeline' has been
           replaced by a manual task. The task of type 'appldesc.GetFile' could not
@@ -47,6 +55,9 @@ spec:
           pythonScript.fileContent: "${release_config_file_content}"
       - name: Update Variables
         type: xlrelease.ScriptTask
+        description: Using the release file content all variable of the release are
+          updated. These variables would be used at various stages of the release
+          process.
         script: |-
           import json
 
@@ -254,6 +265,8 @@ spec:
                       releaseApi.updateVariable(var)
     - name: Update release name
       type: xlrelease.ScriptTask
+      description: Name of the release can be dynamically updated based on the values
+        from the release config file in this case.
       script: |-
         build_name="${artifactoryBuildName}".replace(" ","")
         myList=build_name.split("::")
@@ -282,166 +295,14 @@ spec:
         releaseApi.updateRelease(current_release)
 
         releaseVariables["release_candidate_name"]=scm_branch.replace("/","-")
-    - name: Set integrated release variables
-      type: xlrelease.ScriptTask
-      precondition: getCurrentRelease().title.startswith("Integrated")
-      script: |-
-        current_release = getCurrentRelease()
-        if current_release.title.startswith("Integrated"):
-            releaseVariables['phaseEnablePreDeployGate_dev'] = "No"
-            releaseVariables['phaseEnablePostDeployGate_dev'] = "No"
-            releaseVariables['phaseEnablePreDeployGate_lle'] = "No"
-            releaseVariables['phaseEnablePostDeployGate_lle'] = "No"
-            if "${releaseConfigFileRepoLocation}"  != '':
-                releaseVariables['releaseEnvironments'].clear()
-                for env in ${temp_integrated_release_environment}:
-                    releaseVariables['releaseEnvironments'].append(env)
-    - name: "${jenkinsTriggerInfo} Generate phases and tasks of the pipeline"
-      type: xlrelease.ScriptTask
-      script: |-
-        # Validating the artifactory repository value
-        if 'staging' in "${artifactoryBuildRepo}".lower():
-            print "\n"
-            print "**The entered artifactory repository detail is not a release repository. Please enter the valid one**"
-            print "\n"
-            sys.exit(1)
-        elif 'snapshot' in "${artifactoryBuildRepo}".lower():
-            print "\n"
-            print "**The entered artifactory repository details is not a release repository. Please enter the valid one**"
-            print "\n"
-            sys.exit(1)
-
-        current_release = getCurrentRelease()
-        spkName = "${spkName}"
-        lobName = "${lobName}"
-        release_tags = [spkName,lobName]
-        current_release.tags = release_tags
-        release_owner = current_release.owner
-        release_name=current_release.title
-        releaseVariables['xlr_remedy_workinfo_workLogSubmitter'] = release_owner
-        releaseVariables['xlr_remedy_workinfo_creator'] = release_owner
-        releaseVariables["release_owner"]=release_owner
-        releaseVariables["jira_fixversion"]=release_name
-        releaseVariables["jira_project"]=spkName
-        releaseVariables["litmus_spk"]=spkName
-        releaseVariables["artifact_build_name_url_format"]="${artifactoryBuildName}".replace(" ", "%20")
-
-
-        thisReleaseId = '${release.id}'
-        if thisReleaseId :
-            id = thisReleaseId.replace('/','-').replace("Applications-","/#/releases/")
-            releaseVariables['delivery_pipeline_url'] = "${global.xlrurl}"+id
-
-        dev_template_phase_title = "phase_template_dev"
-        phase_insert_location = int(2)
-        dev_template_phase = phaseApi.searchPhases(dev_template_phase_title,current_release.id,None)[0]
-
-        lle_template_phase_title = "phase_template_lle"
-        phase_insert_location = int(2)
-        lle_template_phase = phaseApi.searchPhases(lle_template_phase_title,current_release.id,None)[0]
-
-        prod_template_phase_title = "phase_template_prod"
-        phase_insert_location = int(2)
-        prod_template_phase = phaseApi.searchPhases(prod_template_phase_title,current_release.id,None)[0]
-
-        for release_environment_name in ${releaseEnvironments} :
-            for component_name in ${spkComponentsToRelease}:
-                new_phase_title = release_environment_name + "(" + component_name + ")"
-                delivery_environment_type = ${phaseType}[release_environment_name]
-                if delivery_environment_type == "DEV":
-                    copied_phase = phaseApi.copyPhase(dev_template_phase.id,phase_insert_location)
-                elif delivery_environment_type == "LLE":
-                    copied_phase = phaseApi.copyPhase(lle_template_phase.id,phase_insert_location)
-                elif delivery_environment_type == "PROD":
-                     copied_phase = phaseApi.copyPhase(prod_template_phase.id,phase_insert_location)
-                else:
-                    print "Do nothing"
-                copied_phase.title = new_phase_title
-                phaseApi.updatePhase(copied_phase)
-                phase_insert_location = phase_insert_location + 1
-
-        # Delete the Template Phase
-        phaseApi.deletePhase(dev_template_phase.id)
-        phaseApi.deletePhase(lle_template_phase.id)
-        phaseApi.deletePhase(prod_template_phase.id)
-
-        # Update release
-        releaseApi.updateRelease(current_release)
     color: '#0099CC'
-  - phase: phase_template_dev
+  - phase: dev
     tasks:
-    - name: Set template phase details
-      type: xlrelease.ScriptTask
-      tags:
-      - key_process_step
-      script: |-
-        current_phase = getCurrentPhase()
-
-        current_phase_title_asis = current_phase.title
-        current_phase_title_split = current_phase_title_asis.split('(')
-        delivery_environment_name = current_phase_title_split[0]
-        component_name_split = current_phase_title_split[1].split(')')
-        component_name = component_name_split[0]
-
-        releaseVariables['component_name'] = component_name
-        releaseVariables['delivery_environment_name'] = delivery_environment_name
-        releaseVariables['delivery_environment_type'] = ${phaseType}[delivery_environment_name]
-        releaseVariables['enable_sonar_metrics_check'] = ${sonarEnableMetricsCheck}[delivery_environment_name]
-        releaseVariables['ansible_tower_job_template_name'] = ${towerJobTemplate}[delivery_environment_name]
-        #for DMZ integration
-        releaseVariables['xlr_inventory_name'] = ${towerInventory}[delivery_environment_name]
-
-        if delivery_environment_name in ${litmus_env_to_phase_mapping}:
-            releaseVariables['litmus_phase'] = ${litmus_env_to_phase_mapping}[delivery_environment_name]
-        if delivery_environment_name in ${litmusComponentName}:
-            releaseVariables['litmus_test_component'] = ${litmusComponentName}[delivery_environment_name]
-        if delivery_environment_name in ${litmus_env_to_app_url_mapping}:
-            releaseVariables['litmus_app_url'] = ${litmus_env_to_app_url_mapping}[delivery_environment_name]
-        if delivery_environment_name in ${litmusEnableFunctionalTests}:
-            releaseVariables['litmus_enable_automated_tests'] = ${litmusEnableFunctionalTests}[delivery_environment_name].strip().lower()
-        if delivery_environment_name in ${litmusTargetApplicationUrl}:
-            releaseVariables['litmus_test_url'] = ${litmusTargetApplicationUrl}[delivery_environment_name]
-
-        if releaseVariables['delivery_environment_type'] == 'DEV':
-            releaseVariables['release_notification_list'] = "${phaseNotificationDg_dev}"
-        elif releaseVariables['delivery_environment_type'] == 'LLE':
-            releaseVariables['release_notification_list'] = "${phaseNotificationDg_lle}"
-        elif releaseVariables['delivery_environment_type'] == 'PROD':
-            releaseVariables['release_notification_list'] = "${phaseNotificationDg_prod}"
-        else:
-             releaseVariables['release_notification_list'] = "please_configure_some_email@domain.com"
-
-        phase_certified_artifact_version_name="phase_certified_artifact_version"+str(component_name)
-        phase_certified_artifact_property_name="phase_certified_artifact_property"+str(component_name)
-
-        try:
-            releaseVariables['phase_certified_artifact_version']=releaseVariables[phase_certified_artifact_version_name]
-            releaseVariables['phase_certified_artifact_property']=releaseVariables[phase_certified_artifact_property_name]
-        except:
-            releaseVariables['phase_certified_artifact_version']=""
-            releaseVariables['phase_certified_artifact_property']=""
-
-        ### Set deployer ID and password
-
-        releaseVariables['nonprod_tower_deployer_id'] = ""
-        releaseVariables['nonprod_tower_deployer_password'] = ""
-
-        if releaseVariables['towerDeployerIdNonProd']:
-              releaseVariables['nonprod_tower_deployer_id'] = releaseVariables['towerDeployerIdNonProd']
-              releaseVariables['nonprod_tower_deployer_password'] = releaseVariables['towerDeployerPasswordNonProd']
-    - name: Update release name
-      type: xlrelease.ScriptTask
-      script: |-
-        current_release = getCurrentRelease()
-
-        if ("${jenkinsBuildNo}"):
-            current_release.title = "{0} Build#{1} {2}".format("${original_release_title}","${jenkinsBuildNo}","${delivery_environment_name}")
-        else:
-            current_release.title = "{0} {1}".format("${original_release_title}","${delivery_environment_name}")
-
-        releaseApi.updateRelease(current_release)
     - name: Acknowledge/sign off release code quality metrics
       type: xlrelease.SequentialGroup
+      description: This is an example of grouping all tasks which are part of one
+        function. All Sonarqube related tasks in this case have been grouped on one
+        sequential group.
       precondition: "releaseVariables['enable_sonar_metrics_check'] == 'Yes'"
       tags:
       - key_process_step
@@ -1460,87 +1321,9 @@ spec:
 
           - #### Refer release pipeline below for more info via 2 available options (flow view , table view):
           ${delivery_pipeline_url}
-    - name: Approval from Integrated Release
-      type: xlrelease.GateTask
-      description: "The gate will be approved by ${integrated_release_name}"
-      owner: script_runner
-      plannedDuration: 349200
-      precondition: getCurrentRelease().title.startswith("Integrated")
-      tags:
-      - key_process_step
     color: '#009CDB'
-  - phase: phase_template_lle
+  - phase: lle
     tasks:
-    - name: Set template phase details
-      type: xlrelease.ScriptTask
-      tags:
-      - key_process_step
-      script: |-
-        current_phase = getCurrentPhase()
-
-        current_phase_title_asis = current_phase.title
-        current_phase_title_split = current_phase_title_asis.split('(')
-        delivery_environment_name = current_phase_title_split[0]
-        component_name_split = current_phase_title_split[1].split(')')
-        component_name = component_name_split[0]
-
-        releaseVariables['component_name'] = component_name
-        releaseVariables['delivery_environment_name'] = delivery_environment_name
-        releaseVariables['delivery_environment_type'] = ${phaseType}[delivery_environment_name]
-        releaseVariables['enable_sonar_metrics_check'] = ${sonarEnableMetricsCheck}[delivery_environment_name]
-        releaseVariables['ansible_tower_job_template_name'] = ${towerJobTemplate}[delivery_environment_name]
-        #for DMZ integration
-        releaseVariables['xlr_inventory_name'] = ${towerInventory}[delivery_environment_name]
-
-        if delivery_environment_name in ${litmus_env_to_phase_mapping}:
-            releaseVariables['litmus_phase'] = ${litmus_env_to_phase_mapping}[delivery_environment_name]
-        if delivery_environment_name in ${litmusComponentName}:
-            releaseVariables['litmus_test_component'] = ${litmusComponentName}[delivery_environment_name]
-        if delivery_environment_name in ${litmus_env_to_app_url_mapping}:
-            releaseVariables['litmus_app_url'] = ${litmus_env_to_app_url_mapping}[delivery_environment_name]
-        if delivery_environment_name in ${litmusEnableFunctionalTests}:
-            releaseVariables['litmus_enable_automated_tests'] = ${litmusEnableFunctionalTests}[delivery_environment_name].strip().lower()
-        if delivery_environment_name in ${litmusTargetApplicationUrl}:
-            releaseVariables['litmus_test_url'] = ${litmusTargetApplicationUrl}[delivery_environment_name]
-
-        if releaseVariables['delivery_environment_type'] == 'DEV':
-            releaseVariables['release_notification_list'] = "${phaseNotificationDg_dev}"
-        elif releaseVariables['delivery_environment_type'] == 'LLE':
-            releaseVariables['release_notification_list'] = "${phaseNotificationDg_lle}"
-        elif releaseVariables['delivery_environment_type'] == 'PROD':
-            releaseVariables['release_notification_list'] = "${phaseNotificationDg_prod}"
-        else:
-             releaseVariables['release_notification_list'] = "please_configure_some_email@domain.com"
-
-        phase_certified_artifact_version_name="phase_certified_artifact_version"+str(component_name)
-        phase_certified_artifact_property_name="phase_certified_artifact_property"+str(component_name)
-
-        try:
-            releaseVariables['phase_certified_artifact_version']=releaseVariables[phase_certified_artifact_version_name]
-            releaseVariables['phase_certified_artifact_property']=releaseVariables[phase_certified_artifact_property_name]
-        except:
-            releaseVariables['phase_certified_artifact_version']=""
-            releaseVariables['phase_certified_artifact_property']=""
-
-        ### Set deployer ID and password
-
-        releaseVariables['nonprod_tower_deployer_id'] = ""
-        releaseVariables['nonprod_tower_deployer_password'] = ""
-
-        if releaseVariables['towerDeployerIdNonProd']:
-              releaseVariables['nonprod_tower_deployer_id'] = releaseVariables['towerDeployerIdNonProd']
-              releaseVariables['nonprod_tower_deployer_password'] = releaseVariables['towerDeployerPasswordNonProd']
-    - name: Update release name
-      type: xlrelease.ScriptTask
-      script: |-
-        current_release = getCurrentRelease()
-
-        if ("${jenkinsBuildNo}"):
-            current_release.title = "{0} Build#{1} {2}".format("${original_release_title}","${jenkinsBuildNo}","${delivery_environment_name}")
-        else:
-            current_release.title = "{0} {1}".format("${original_release_title}","${delivery_environment_name}")
-
-        releaseApi.updateRelease(current_release)
     - name: Acknowledge/sign off release code quality metrics
       type: xlrelease.SequentialGroup
       precondition: "releaseVariables['enable_sonar_metrics_check'] == 'Yes'"
@@ -2565,78 +2348,9 @@ spec:
 
           - #### Refer release pipeline below for more info via 2 available options (flow view , table view):
           ${delivery_pipeline_url}
-    - name: Approval from Integrated Release
-      type: xlrelease.GateTask
-      description: "The gate will be approved by ${integrated_release_name}"
-      owner: script_runner
-      plannedDuration: 349200
-      precondition: getCurrentRelease().title.startswith("Integrated")
-      tags:
-      - key_process_step
     color: '#009CDB'
-  - phase: phase_template_prod
+  - phase: prod
     tasks:
-    - name: Set template phase details
-      type: xlrelease.ScriptTask
-      tags:
-      - key_process_step
-      script: |-
-        current_phase = getCurrentPhase()
-
-        current_phase_title_asis = current_phase.title
-        current_phase_title_split = current_phase_title_asis.split('(')
-        delivery_environment_name = current_phase_title_split[0]
-        component_name_split = current_phase_title_split[1].split(')')
-        component_name = component_name_split[0]
-
-        releaseVariables['component_name'] = component_name
-        releaseVariables['delivery_environment_name'] = delivery_environment_name
-        releaseVariables['delivery_environment_type'] = ${phaseType}[delivery_environment_name]
-        releaseVariables['enable_sonar_metrics_check'] = ${sonarEnableMetricsCheck}[delivery_environment_name]
-        releaseVariables['ansible_tower_job_template_name'] = ${towerJobTemplate}[delivery_environment_name]
-        #for DMZ integration
-        releaseVariables['xlr_inventory_name'] = ${towerInventory}[delivery_environment_name]
-
-        if delivery_environment_name in ${litmus_env_to_phase_mapping}:
-            releaseVariables['litmus_phase'] = ${litmus_env_to_phase_mapping}[delivery_environment_name]
-        if delivery_environment_name in ${litmusComponentName}:
-            releaseVariables['litmus_test_component'] = ${litmusComponentName}[delivery_environment_name]
-        if delivery_environment_name in ${litmus_env_to_app_url_mapping}:
-            releaseVariables['litmus_app_url'] = ${litmus_env_to_app_url_mapping}[delivery_environment_name]
-        if delivery_environment_name in ${litmusEnableFunctionalTests}:
-            releaseVariables['litmus_enable_automated_tests'] = ${litmusEnableFunctionalTests}[delivery_environment_name].strip().lower()
-        if delivery_environment_name in ${litmusTargetApplicationUrl}:
-            releaseVariables['litmus_test_url'] = ${litmusTargetApplicationUrl}[delivery_environment_name]
-
-        if releaseVariables['delivery_environment_type'] == 'DEV':
-            releaseVariables['release_notification_list'] = "${phaseNotificationDg_dev}"
-        elif releaseVariables['delivery_environment_type'] == 'LLE':
-            releaseVariables['release_notification_list'] = "${phaseNotificationDg_lle}"
-        elif releaseVariables['delivery_environment_type'] == 'PROD':
-            releaseVariables['release_notification_list'] = "${phaseNotificationDg_prod}"
-        else:
-             releaseVariables['release_notification_list'] = "please_configure_some_email@domain.com"
-
-        phase_certified_artifact_version_name="phase_certified_artifact_version"+str(component_name)
-        phase_certified_artifact_property_name="phase_certified_artifact_property"+str(component_name)
-
-        try:
-            releaseVariables['phase_certified_artifact_version']=releaseVariables[phase_certified_artifact_version_name]
-            releaseVariables['phase_certified_artifact_property']=releaseVariables[phase_certified_artifact_property_name]
-        except:
-            releaseVariables['phase_certified_artifact_version']=""
-            releaseVariables['phase_certified_artifact_property']=""
-    - name: Update release name
-      type: xlrelease.ScriptTask
-      script: |-
-        current_release = getCurrentRelease()
-
-        if ("${jenkinsBuildNo}"):
-            current_release.title = "{0} Build#{1} {2}".format("${original_release_title}","${jenkinsBuildNo}","${delivery_environment_name}")
-        else:
-            current_release.title = "{0} {1}".format("${original_release_title}","${delivery_environment_name}")
-
-        releaseApi.updateRelease(current_release)
     - name: Acknowledge/sign off release code quality metrics
       type: xlrelease.SequentialGroup
       precondition: "releaseVariables['enable_sonar_metrics_check'] == 'Yes'"
@@ -4242,15 +3956,8 @@ spec:
 
           - #### Refer release pipeline below for more info via 2 available options (flow view , table view):
           ${delivery_pipeline_url}
-    - name: Approval from Integrated Release
-      type: xlrelease.GateTask
-      description: "The gate will be approved by ${integrated_release_name}"
-      owner: script_runner
-      plannedDuration: 349200
-      precondition: getCurrentRelease().title.startswith("Integrated")
-      tags:
-      - key_process_step
     color: '#009CDB'
+  realFlagStatus: ATTENTION_NEEDED
   variables:
   - type: xlrelease.StringVariable
     key: MANUAL-DATA-ENTRY_SECTION_START
@@ -4397,13 +4104,13 @@ spec:
   - type: xlrelease.StringVariable
     key: phaseNotificationDg_lle
     requiresValue: false
-    description: "comma separated email ids/DG for LLE release notifications  (Eg user@domain.com,\
-      \ user@domain.com)"
+    description: "comma separated email ids/DG for LLE release notifications  (Eg\
+      \ user@domain.com, user@domain.com)"
   - type: xlrelease.StringVariable
     key: phaseNotificationDg_prod
     requiresValue: false
-    description: "comma separated email ids/DG for PROD release notifications (Eg user@domain.com,\
-      \ user@domain.com)"
+    description: "comma separated email ids/DG for PROD release notifications (Eg\
+      \ user@domain.com, user@domain.com)"
   - type: xlrelease.StringVariable
     key: EMAIL-SECTION-END
     requiresValue: false
