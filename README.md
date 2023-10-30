@@ -1,6 +1,6 @@
-# XL Release Example Templates and Demos
+# Digital.ai Release Example Templates and Demos
 
-This community project contains a number of XL Release example templates that can be used as a learning tool. Although none of the templates can be used 'as is' to create a runnable release, they can be imported into either your own XL Release instance or the provided docker-ized XL Release, giving you an opportunity to explore and experiment with various XLR template configurations and tasks.
+This community project contains a number of Digital.ai Release example templates that can be used as a learning tool. Although none of the templates can be used 'as is' to create a runnable release, they can be imported into either your own Digital.ai Release instance or the provided docker-ized Digital.ai Release, giving you an opportunity to explore and experiment with various XLR template configurations and tasks.
 
 Also listed are links to other projects that include community plugin demos and XebiaLab Blueprints, both offical and community.
 
@@ -19,10 +19,10 @@ How to tell what type of task - screenshots too
 
 1. You will need to have Docker and Docker Compose installed.
 2. Clone this project to your machine
-3. The XL-Release image will use the community license. Note that by using this license, you are accepting the [End User License Agreement](https://dist.xebialabs.com/public/legal/eula-artifacts-v10.txt). If you prefer to use your own license, modify the docker-compose.yml file.
+3. The Digital.ai-Release image will use the community license. Note that by using this license, you are accepting the [End User License Agreement](https://dist.xebialabs.com/public/legal/eula-artifacts-v10.txt). If you prefer to use your own license, modify the docker-compose.yml file.
 4. If an XLR plugin is required to import the template, you can place the plugin release file in the xlr-template-examples/docker/plugins directory. When XLR starts up in docker, the plugin will be automatically installed into the running XLR instance.
-5. XL Release will run on the [localhost port 15516](http://localhost:15516/).
-6. The XL Release username / password is admin / admin. 
+5. Digital.ai Release will run on the [localhost port 15516](http://localhost:15516/).
+6. The Digital.ai Release username / password is admin / admin. 
 7. Open a terminal in the the xlr-template-examples/docker directory and run the following command  
 
 ```bash
@@ -109,4 +109,4 @@ Links provided go directly to the plugin project where you will find detailed in
 
 | Blueprint | Notable Features |
 | --- | --- |
-| [AWS Wildfly Application](https://github.com/xebialabs-community/xl-blueprints-community/tree/master/aws-ec2wildfly-app-demo) | This blueprint demo will show you how to download, customize and then apply a blueprint to XL Release and XL Deploy. The applied blueprint configures an XL Release \ XL Deploy deployment pipeline that can be used to spin up an instance of an AWS Wildfly AMI in your AWS account and then deploy a simple application to that instance. |
+| [AWS Wildfly Application](https://github.com/xebialabs-community/xl-blueprints-community/tree/master/aws-ec2wildfly-app-demo) | This blueprint demo will show you how to download, customize and then apply a blueprint to Digital.ai Release and Digital.ai Deploy. The applied blueprint configures an Digital.ai Release \ Digital.ai Deploy deployment pipeline that can be used to spin up an instance of an AWS Wildfly AMI in your AWS account and then deploy a simple application to that instance. |
